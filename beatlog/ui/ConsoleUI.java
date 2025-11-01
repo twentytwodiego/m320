@@ -16,12 +16,13 @@ public class ConsoleUI {
         Properties config = new Properties();
         config.setProperty("data.dir", "data");
         config.setProperty("songs.file", "songs.json");
+        config.setProperty("sessions.file", "sessions.json");
 
         Repository repo = new JsonRepository(config);
         LibraryService service = new LibraryService(repo);
         Controller controller = new Controller(service);
 
-        System.out.println("=== BeatLog (UC-01) – Songs verwalten ===");
+        System.out.println("=== BeatLog – Songs & Sessions (UC-01 + UC-02) ===");
         while (true) {
             System.out.println("""
                 \nMenü:
@@ -29,6 +30,8 @@ public class ConsoleUI {
                 2) Song anlegen
                 3) Song bearbeiten
                 4) Song löschen
+                5) Session loggen
+                6) Sessions anzeigen
                 0) Beenden
                 """);
             System.out.print("> ");
@@ -39,6 +42,8 @@ public class ConsoleUI {
                     case "2" -> createSong(controller);
                     case "3" -> editSong(controller);
                     case "4" -> deleteSong(controller);
+                    case "5" -> logSession(controller);
+                    case "6" -> listSessions(controller);
                     case "0" -> { System.out.println("Tschüss!"); return; }
                     default -> System.out.println("Unbekannte Option.");
                 }
@@ -48,6 +53,7 @@ public class ConsoleUI {
         }
     }
 
+    // ---- SONGS ----
     private void listSongs(Controller controller) {
         List<Song> songs = controller.getAllSongs();
         if (songs.isEmpty()) {
@@ -62,14 +68,15 @@ public class ConsoleUI {
 
     private void createSong(Controller controller) {
         System.out.println("— Song anlegen —");
-        String title = ask("Titel");
-        String artist = ask("Artist");
-        String genre = ask("Genre");
+        String title = ask("Titel", false);
+        String artist = ask("Artist", false);
+        String genre = ask("Genre", false);
         int year = askInt("Jahr (z.B. 2022)", 1900, 2100);
-        int duration = askInt("Dauer in Sekunden", 1, 60*60*24);
-        String mood = ask("Mood (optional, leer erlaubt)");
+        int duration = askInt("Dauer in Sekunden", 1, 60 * 60 * 24);
+        String mood = ask("Mood (optional, leer erlaubt)", true);     // jetzt wirklich optional
         int rating = askInt("Rating (1..10)", 1, 10);
-        Set<String> tags = parseTags(ask("Tags (kommagetrennt, optional)"));
+        String tagsRaw = ask("Tags (kommagetrennt, optional)", true); // jetzt wirklich optional
+        Set<String> tags = parseTags(tagsRaw);
 
         String id = controller.createSong(title, artist, genre, year, duration, mood, rating, tags);
         System.out.println("Angelegt mit ID: " + id);
@@ -90,10 +97,11 @@ public class ConsoleUI {
         String artist = askDefault("Artist", old.getArtist());
         String genre = askDefault("Genre", old.getGenre());
         int year = askIntDefault("Jahr", 1900, 2100, old.getYear());
-        int duration = askIntDefault("Dauer (Sek)", 1, 60*60*24, old.getDurationSec());
+        int duration = askIntDefault("Dauer (Sek)", 1, 60 * 60 * 24, old.getDurationSec());
         String mood = askDefault("Mood (leer erlaubt)", old.getMood() == null ? "" : old.getMood());
         int rating = askIntDefault("Rating (1..10)", 1, 10, old.getRating());
-        Set<String> tags = parseTags(askDefault("Tags (kommagetrennt)", old.getTags() == null ? "" : String.join(",", old.getTags())));
+        String tagsRaw = askDefault("Tags (kommagetrennt)", old.getTags() == null ? "" : String.join(",", old.getTags()));
+        Set<String> tags = parseTags(tagsRaw);
 
         controller.updateSong(old.getId(), title, artist, genre, year, duration, mood, rating, tags);
         System.out.println("Aktualisiert.");
@@ -119,22 +127,62 @@ public class ConsoleUI {
         }
     }
 
-    // Helpers
+    // ---- SESSIONS ----
+    private void logSession(Controller controller) {
+        var songs = controller.getAllSongs();
+        if (songs.isEmpty()) {
+            System.out.println("Keine Songs vorhanden. Bitte zuerst anlegen.");
+            return;
+        }
+        listSongs(controller);
+        int idx = askInt("Welchen Song hast du gehört?", 1, songs.size());
+        var song = songs.get(idx - 1);
 
-    private String ask(String label) {
+        String mood = ask("Mood beim Hören (optional)", true); // optional erlaubt
+        String note = ask("Notiz (optional)", true);            // optional erlaubt
+        String ratingStr = ask("Neues Rating (leer für keins)", true);
+        Integer rating = ratingStr.isBlank() ? null : Integer.parseInt(ratingStr);
+
+        controller.logListeningSession(song.getId(), mood, note, rating);
+        System.out.println("Session gespeichert.");
+    }
+
+    private void listSessions(Controller controller) {
+        var sessions = controller.getAllSessions();
+        if (sessions.isEmpty()) {
+            System.out.println("Keine Sessions vorhanden.");
+            return;
+        }
+        int i = 1;
+        for (var s : sessions) {
+            System.out.println(i++ + ") " + s);
+        }
+    }
+
+    // ---- Helpers (robust, mit optional-Flag) ----
+    private String ask(String label, boolean optional) {
         while (true) {
             System.out.print(label + ": ");
-            String v = sc.nextLine().trim();
-            if (!v.isEmpty() || label.toLowerCase().contains("mood") || label.toLowerCase().contains("tags"))
-                return v;
+            String v = sc.nextLine();
+            if (optional) {
+                return v.trim(); // darf leer sein
+            }
+            if (!v.trim().isEmpty()) {
+                return v.trim();
+            }
             System.out.println("Eingabe darf nicht leer sein.");
         }
     }
 
+    // Beibehaltung der alten Signatur für Pflichtfelder
+    private String ask(String label) {
+        return ask(label, false);
+    }
+
     private String askDefault(String label, String def) {
         System.out.print(label + " [" + (def == null ? "" : def) + "]: ");
-        String v = sc.nextLine().trim();
-        return v.isEmpty() ? (def == null ? "" : def) : v;
+        String v = sc.nextLine();
+        return v.trim().isEmpty() ? (def == null ? "" : def) : v.trim();
     }
 
     private int askInt(String label, int min, int max) {

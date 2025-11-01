@@ -1,8 +1,8 @@
 package ch.tbz.beatlog.persistence;
 
 import ch.tbz.beatlog.domain.Song;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import ch.tbz.beatlog.domain.ListeningSession;
+import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.IOException;
@@ -11,55 +11,85 @@ import java.io.Writer;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.*;
 
 public class JsonRepository implements Repository {
 
-    private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
+    private final Gson gson;
     private final Path dataDir;
     private final Path songsFile;
+    private final Path sessionsFile;
 
-    // einfacher Cache im Speicher
     private final Map<String, Song> songs = new LinkedHashMap<>();
+    private final List<ListeningSession> sessions = new ArrayList<>();
     private boolean loaded = false;
 
     public JsonRepository(Properties config) {
         String dir = Objects.requireNonNullElse(config.getProperty("data.dir"), "data");
         String songsName = Objects.requireNonNullElse(config.getProperty("songs.file"), "songs.json");
+        String sessionsName = Objects.requireNonNullElse(config.getProperty("sessions.file"), "sessions.json");
+
         this.dataDir = Path.of(dir);
         this.songsFile = dataDir.resolve(songsName);
+        this.sessionsFile = dataDir.resolve(sessionsName);
+
+        // Gson + Adapter für java.time.Instant
+        this.gson = new GsonBuilder()
+                .setPrettyPrinting()
+                .registerTypeAdapter(Instant.class, (JsonSerializer<Instant>) (src, t, ctx) ->
+                        new JsonPrimitive(src.toString()))
+                .registerTypeAdapter(Instant.class, (JsonDeserializer<Instant>) (json, t, ctx) ->
+                        Instant.parse(json.getAsString()))
+                .create();
     }
 
     private void ensureLoaded() {
         if (loaded) return;
         try {
             if (!Files.exists(dataDir)) Files.createDirectories(dataDir);
+
+            // Songs laden
             if (Files.exists(songsFile)) {
                 try (Reader r = Files.newBufferedReader(songsFile)) {
-                    Type listType = new TypeToken<List<Song>>(){}.getType();
+                    Type listType = new TypeToken<List<Song>>() {}.getType();
                     List<Song> list = gson.fromJson(r, listType);
-                    if (list != null) {
-                        for (Song s : list) songs.put(s.getId(), s);
-                    }
+                    if (list != null) for (Song s : list) songs.put(s.getId(), s);
                 }
             }
+
+            // Sessions laden
+            if (Files.exists(sessionsFile)) {
+                try (Reader r = Files.newBufferedReader(sessionsFile)) {
+                    Type listType = new TypeToken<List<ListeningSession>>() {}.getType();
+                    List<ListeningSession> list = gson.fromJson(r, listType);
+                    if (list != null) sessions.addAll(list);
+                }
+            }
+
             loaded = true;
         } catch (IOException e) {
-            throw new RuntimeException("Konnte Daten nicht laden: " + e.getMessage(), e);
+            throw new RuntimeException("Fehler beim Laden: " + e.getMessage(), e);
         }
     }
 
     private void persistSongs() {
-        try {
-            List<Song> list = new ArrayList<>(songs.values());
-            try (Writer w = Files.newBufferedWriter(songsFile)) {
-                gson.toJson(list, w);
-            }
+        try (Writer w = Files.newBufferedWriter(songsFile)) {
+            gson.toJson(new ArrayList<>(songs.values()), w);
         } catch (IOException e) {
             throw new RuntimeException("Konnte Songs nicht speichern: " + e.getMessage(), e);
         }
     }
 
+    private void persistSessions() {
+        try (Writer w = Files.newBufferedWriter(sessionsFile)) {
+            gson.toJson(sessions, w);
+        } catch (IOException e) {
+            throw new RuntimeException("Konnte Sessions nicht speichern: " + e.getMessage(), e);
+        }
+    }
+
+    // ---- SONGS ----
     @Override
     public void saveSong(Song song) {
         ensureLoaded();
@@ -84,5 +114,19 @@ public class JsonRepository implements Repository {
         ensureLoaded();
         songs.remove(id);
         persistSongs();
+    }
+
+    // ---- SESSIONS ----
+    @Override
+    public void saveSession(ListeningSession session) {
+        ensureLoaded();
+        sessions.add(session);
+        persistSessions();
+    }
+
+    @Override
+    public List<ListeningSession> loadAllSessions() {
+        ensureLoaded();
+        return new ArrayList<>(sessions);
     }
 }
