@@ -3,6 +3,7 @@ package ch.tbz.beatlog.service;
 import ch.tbz.beatlog.common.ValidationException;
 import ch.tbz.beatlog.domain.Song;
 import ch.tbz.beatlog.domain.ListeningSession;
+import ch.tbz.beatlog.domain.DataSnapshot;
 import ch.tbz.beatlog.persistence.Repository;
 
 import java.time.Instant;
@@ -38,13 +39,8 @@ public class LibraryService {
         repo.deleteSong(id);
     }
 
-    public List<Song> listSongs() {
-        return repo.loadAllSongs();
-    }
-
-    public Optional<Song> getSong(String id) {
-        return repo.findSongById(id);
-    }
+    public List<Song> listSongs() { return repo.loadAllSongs(); }
+    public Optional<Song> getSong(String id) { return repo.findSongById(id); }
 
     private void validateSong(Song s, boolean isCreate) {
         if (s == null) throw new ValidationException("Song ist null.");
@@ -79,4 +75,10 @@ public class LibraryService {
     public List<ListeningSession> listSessions() {
         return repo.loadAllSessions();
     }
+
+    // --- UC-05 Backup/Restore ---
+    public DataSnapshot snapshot() { return repo.getSnapshot(); }
+    public void replaceAll(DataSnapshot snap) { repo.replaceAll(snap); }
+    public void backupToFile(String path) { repo.exportAll(path); }
+    public void restoreFromFile(String path) { repo.importAll(path); }
 }

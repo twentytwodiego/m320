@@ -14,6 +14,7 @@ import java.util.*;
 public class ConsoleUI {
 
     private final Scanner sc = new Scanner(System.in);
+    private static final String MOOD_HINT = "(happy / sad / aggressive, optional)";
 
     public void start() {
         Properties config = new Properties();
@@ -38,6 +39,8 @@ public class ConsoleUI {
                 6) Sessions anzeigen
                 7) Songs filtern (Mood/Rating/Tag)
                 8) Smarte Playlist generieren
+                9) Backup exportieren (alle Daten)
+                10) Backup importieren (alle Daten)
                 0) Beenden
                 """);
             System.out.print("> ");
@@ -52,6 +55,8 @@ public class ConsoleUI {
                     case "6" -> listSessions(controller);
                     case "7" -> filterSongs(controller, playlists);
                     case "8" -> generateSmartPlaylist(controller, playlists);
+                    case "9" -> doBackup(library);
+                    case "10" -> doRestore(library);
                     case "0" -> { System.out.println("Tschüss!"); return; }
                     default -> System.out.println("Unbekannte Option.");
                 }
@@ -70,7 +75,8 @@ public class ConsoleUI {
         }
         int i = 1;
         for (Song s : songs) {
-            System.out.printf("%d) [%s] %s — %s (%d★, %s)%n", i++, s.getId(), s.getArtist(), s.getTitle(), s.getRating(), s.getMood());
+            System.out.printf("%d) [%s] %s — %s (%d★, %s)%n",
+                    i++, s.getId(), s.getArtist(), s.getTitle(), s.getRating(), s.getMood());
         }
     }
 
@@ -81,7 +87,7 @@ public class ConsoleUI {
         String genre = ask("Genre", false);
         int year = askInt("Jahr (z.B. 2022)", 1900, 2100);
         int duration = askInt("Dauer in Sekunden", 1, 60 * 60 * 24);
-        String mood = ask("Mood (optional)", true);
+        String mood = ask("Mood " + MOOD_HINT, true);
         int rating = askInt("Rating (1..10)", 1, 10);
         String tagsRaw = ask("Tags (kommagetrennt, optional)", true);
         Set<String> tags = parseTags(tagsRaw);
@@ -106,7 +112,7 @@ public class ConsoleUI {
         String genre = askDefault("Genre", old.getGenre());
         int year = askIntDefault("Jahr", 1900, 2100, old.getYear());
         int duration = askIntDefault("Dauer (Sek)", 1, 60 * 60 * 24, old.getDurationSec());
-        String mood = askDefault("Mood", old.getMood() == null ? "" : old.getMood());
+        String mood = askDefault("Mood " + MOOD_HINT, old.getMood() == null ? "" : old.getMood());
         int rating = askIntDefault("Rating (1..10)", 1, 10, old.getRating());
         String tagsRaw = askDefault("Tags", old.getTags() == null ? "" : String.join(",", old.getTags()));
         Set<String> tags = parseTags(tagsRaw);
@@ -129,7 +135,9 @@ public class ConsoleUI {
         if (sc.nextLine().trim().equalsIgnoreCase("j")) {
             controller.deleteSong(s.getId());
             System.out.println("Gelöscht.");
-        } else System.out.println("Abgebrochen.");
+        } else {
+            System.out.println("Abgebrochen.");
+        }
     }
 
     // === UC-02 Sessions ===
@@ -143,10 +151,10 @@ public class ConsoleUI {
         int idx = askInt("Welchen Song gehört?", 1, songs.size());
         var song = songs.get(idx - 1);
 
-        String mood = ask("Mood (optional)", true);
+        String mood = ask("Mood beim Hören " + MOOD_HINT, true);
         String note = ask("Notiz (optional)", true);
         String ratingStr = ask("Neues Rating (leer = keins)", true);
-        Integer rating = ratingStr.isBlank() ? null : Integer.parseInt(ratingStr);
+        Integer rating = ratingStr.isBlank() ? null : tryParseInt(ratingStr);
 
         controller.logListeningSession(song.getId(), mood, note, rating);
         System.out.printf("Session gespeichert für %s — %s%n", song.getArtist(), song.getTitle());
@@ -174,22 +182,22 @@ public class ConsoleUI {
     // === UC-04 Filter ===
     private void filterSongs(Controller controller, PlaylistService playlists) {
         System.out.println("— Filter —");
-        String mood = ask("Mood (leer = beliebig)", true);
+        String mood = ask("Mood-Filter " + MOOD_HINT.replace(", optional", ""), true);
         String minRatingStr = ask("Mindest-Rating (leer = beliebig)", true);
-        Integer minRating = minRatingStr.isBlank() ? null : Integer.parseInt(minRatingStr);
+        Integer minRating = minRatingStr.isBlank() ? null : tryParseInt(minRatingStr);
         String tag = ask("Tag (leer = beliebig)", true);
 
         var filtered = playlists.filterSongs(controller.getAllSongs(),
                 mood.isBlank() ? null : mood, minRating, tag.isBlank() ? null : tag);
 
-        if (filtered.isEmpty()) {
-            System.out.println("Keine Treffer.");
-            return;
-        }
-        System.out.println("Gefundene Songs:");
+        System.out.printf("Filter angewendet → %d Treffer%n", filtered.size());
+        if (filtered.isEmpty()) return;
+
         int i = 1;
-        for (var s : filtered)
-            System.out.printf("%d) %s — %s (%d★, %s)%n", i++, s.getArtist(), s.getTitle(), s.getRating(), s.getMood());
+        for (var s : filtered) {
+            System.out.printf("%d) %s — %s (%d★, %s)%n",
+                    i++, s.getArtist(), s.getTitle(), s.getRating(), s.getMood());
+        }
     }
 
     // === UC-03 Smarte Playlist ===
@@ -201,35 +209,59 @@ public class ConsoleUI {
         }
 
         System.out.println("— Smarte Playlist —");
-        List<SmartPlaylistStrategy> strategies = playlists.getAvailableStrategies();
+        var strategies = playlists.getAvailableStrategies();
         for (int i = 0; i < strategies.size(); i++) {
             System.out.printf("%d) %s%n", i + 1, strategies.get(i).getName());
         }
         int choice = askInt("Strategie wählen", 1, strategies.size());
         SmartPlaylistStrategy strategy = strategies.get(choice - 1);
+        System.out.println("Strategie: " + strategy.getName());
 
-        String mood = ask("Mood-Filter (leer = keiner)", true);
+        String mood = ask("Mood-Filter " + MOOD_HINT.replace(", optional", ""), true);
         String minRatingStr = ask("Mindest-Rating (leer = keiner)", true);
-        Integer minRating = minRatingStr.isBlank() ? null : Integer.parseInt(minRatingStr);
+        Integer minRating = minRatingStr.isBlank() ? null : tryParseInt(minRatingStr);
         String tag = ask("Tag-Filter (leer = keiner)", true);
 
         var filtered = playlists.filterSongs(all,
                 mood.isBlank() ? null : mood, minRating, tag.isBlank() ? null : tag);
-        var playlist = strategy.generate(filtered);
 
-        if (playlist.isEmpty()) {
-            System.out.println("Keine Songs nach diesen Kriterien gefunden.");
+        System.out.printf("Vor Strategie: %d Songs nach Filter%n", filtered.size());
+        if (filtered.isEmpty()) {
+            System.out.println("Keine Songs nach diesen Kriterien.");
             return;
         }
 
-        System.out.println("\n🎧 Playlist – " + strategy.getName());
+        var playlist = strategy.generate(filtered);
+
+        System.out.println("\n🎧 Playlist – " + strategy.getName() + " (" + playlist.size() + " Titel)");
         int i = 1;
         for (var s : playlist) {
-            System.out.printf("%d) %s — %s (%d★, %s)%n", i++, s.getArtist(), s.getTitle(), s.getRating(), s.getMood());
+            System.out.printf("%d) %s — %s (%d★, %s)%n",
+                    i++, s.getArtist(), s.getTitle(), s.getRating(), s.getMood());
         }
     }
 
-    // === Helper ===
+    // === UC-05: Backup/Restore ===
+    private void doBackup(LibraryService library) {
+        String path = ask("Export-Datei (Standard: data/backup.json)", true);
+        if (path.isBlank()) path = "data/backup.json";
+        library.backupToFile(path);
+        System.out.println("Backup gespeichert: " + path);
+    }
+
+    private void doRestore(LibraryService library) {
+        String path = ask("Import-Datei (z.B. data/backup.json)", false);
+        System.out.print("WARNUNG: Das überschreibt lokale Songs & Sessions. Fortfahren? (j/N): ");
+        String ok = sc.nextLine().trim().toLowerCase();
+        if (!ok.equals("j") && !ok.equals("ja")) {
+            System.out.println("Abgebrochen.");
+            return;
+        }
+        library.restoreFromFile(path);
+        System.out.println("Import abgeschlossen.");
+    }
+
+    // === Helpers ===
     private String ask(String label, boolean optional) {
         while (true) {
             System.out.print(label + ": ");
@@ -271,6 +303,10 @@ public class ConsoleUI {
         }
     }
 
+    private Integer tryParseInt(String raw) {
+        try { return Integer.parseInt(raw.trim()); } catch (Exception e) { return null; }
+    }
+
     private Set<String> parseTags(String raw) {
         if (raw == null || raw.isBlank()) return Collections.emptySet();
         String[] parts = raw.split(",");
@@ -282,3 +318,4 @@ public class ConsoleUI {
         return set;
     }
 }
+    

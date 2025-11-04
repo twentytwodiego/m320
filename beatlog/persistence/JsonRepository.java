@@ -2,6 +2,7 @@ package ch.tbz.beatlog.persistence;
 
 import ch.tbz.beatlog.domain.Song;
 import ch.tbz.beatlog.domain.ListeningSession;
+import ch.tbz.beatlog.domain.DataSnapshot;
 import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
 
@@ -34,7 +35,6 @@ public class JsonRepository implements Repository {
         this.songsFile = dataDir.resolve(songsName);
         this.sessionsFile = dataDir.resolve(sessionsName);
 
-        // Gson + Adapter für java.time.Instant
         this.gson = new GsonBuilder()
                 .setPrettyPrinting()
                 .registerTypeAdapter(Instant.class, (JsonSerializer<Instant>) (src, t, ctx) ->
@@ -128,5 +128,62 @@ public class JsonRepository implements Repository {
     public List<ListeningSession> loadAllSessions() {
         ensureLoaded();
         return new ArrayList<>(sessions);
+    }
+
+    // ---- UC-05 SNAPSHOT/EXPORT/IMPORT ----
+    @Override
+    public DataSnapshot getSnapshot() {
+        ensureLoaded();
+        return new DataSnapshot(new ArrayList<>(songs.values()), new ArrayList<>(sessions));
+    }
+
+    @Override
+    public void replaceAll(DataSnapshot snapshot) {
+        ensureLoaded();
+        songs.clear();
+        sessions.clear();
+
+        if (snapshot.getSongs() != null) {
+            for (Song s : snapshot.getSongs()) {
+                songs.put(s.getId(), s);
+            }
+        }
+        if (snapshot.getSessions() != null) {
+            sessions.addAll(snapshot.getSessions());
+        }
+
+        // persistieren
+        persistSongs();
+        persistSessions();
+    }
+
+    @Override
+    public void exportAll(String filePath) {
+        ensureLoaded();
+        DataSnapshot snap = getSnapshot();
+        Path target = Path.of(filePath);
+        try {
+            if (target.getParent() != null && !Files.exists(target.getParent())) {
+                Files.createDirectories(target.getParent());
+            }
+            try (Writer w = Files.newBufferedWriter(target)) {
+                gson.toJson(snap, w);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Export fehlgeschlagen: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public void importAll(String filePath) {
+        Path src = Path.of(filePath);
+        if (!Files.exists(src)) throw new RuntimeException("Import-Datei nicht gefunden: " + filePath);
+        try (Reader r = Files.newBufferedReader(src)) {
+            DataSnapshot snap = gson.fromJson(r, DataSnapshot.class);
+            if (snap == null) throw new RuntimeException("Import-Datei leer oder ungültig.");
+            replaceAll(snap);
+        } catch (IOException e) {
+            throw new RuntimeException("Import fehlgeschlagen: " + e.getMessage(), e);
+        }
     }
 }
