@@ -17,7 +17,6 @@ public class Controller {
         this.service = service;
     }
 
-    // UC-01
     public String createSong(String title, String artist, String genre, int year, int durationSec,
                              String mood, int rating, Set<String> tags) {
         String id = Ids.newId();
@@ -36,7 +35,6 @@ public class Controller {
     public List<Song> getAllSongs() { return service.listSongs(); }
     public Optional<Song> getSong(String id) { return service.getSong(id); }
 
-    // UC-02
     public void logListeningSession(String songId, String mood, String note, Integer ratingOverride) {
         ListeningSession s = new ListeningSession(
                 Ids.newId(), songId, Instant.now(), mood, note, ratingOverride);

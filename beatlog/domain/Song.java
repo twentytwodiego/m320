@@ -4,17 +4,17 @@ import java.util.Objects;
 import java.util.Set;
 
 public class Song {
-    private String id;          // UUID
+    private String id;          
     private String title;
     private String artist;
     private String genre;
     private int year;
-    private int durationSec;    // > 0
-    private String mood;        // optional
-    private int rating;         // 1..10
-    private Set<String> tags;   // optional
+    private int durationSec;    
+    private String mood;        
+    private int rating;         
+    private Set<String> tags;   
 
-    public Song() {} // for Gson
+    public Song() {} 
 
     public Song(String id, String title, String artist, String genre, int year,
                 int durationSec, String mood, int rating, Set<String> tags) {

@@ -89,7 +89,6 @@ public class JsonRepository implements Repository {
         }
     }
 
-    // ---- SONGS ----
     @Override
     public void saveSong(Song song) {
         ensureLoaded();
@@ -116,7 +115,6 @@ public class JsonRepository implements Repository {
         persistSongs();
     }
 
-    // ---- SESSIONS ----
     @Override
     public void saveSession(ListeningSession session) {
         ensureLoaded();
@@ -130,7 +128,6 @@ public class JsonRepository implements Repository {
         return new ArrayList<>(sessions);
     }
 
-    // ---- UC-05 SNAPSHOT/EXPORT/IMPORT ----
     @Override
     public DataSnapshot getSnapshot() {
         ensureLoaded();
@@ -152,7 +149,6 @@ public class JsonRepository implements Repository {
             sessions.addAll(snapshot.getSessions());
         }
 
-        // persistieren
         persistSongs();
         persistSessions();
     }

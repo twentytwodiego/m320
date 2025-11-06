@@ -19,7 +19,6 @@ public class LibraryService {
         this.repo = repo;
     }
 
-    // --- UC-01 Songs ---
     public void addSong(Song s) {
         validateSong(s, true);
         repo.saveSong(s);
@@ -56,7 +55,6 @@ public class LibraryService {
             throw new ValidationException("Rating muss zwischen 1 und 10 liegen.");
     }
 
-    // --- UC-02 Sessions ---
     public void logSession(ListeningSession s) {
         if (s.getSongId() == null || s.getSongId().isBlank())
             throw new ValidationException("Song-ID fehlt für Session.");
@@ -76,7 +74,6 @@ public class LibraryService {
         return repo.loadAllSessions();
     }
 
-    // --- UC-05 Backup/Restore ---
     public DataSnapshot snapshot() { return repo.getSnapshot(); }
     public void replaceAll(DataSnapshot snap) { repo.replaceAll(snap); }
     public void backupToFile(String path) { repo.exportAll(path); }

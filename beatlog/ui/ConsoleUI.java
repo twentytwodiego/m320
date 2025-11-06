@@ -66,7 +66,6 @@ public class ConsoleUI {
         }
     }
 
-    // === UC-01 Songs ===
     private void listSongs(Controller controller) {
         List<Song> songs = controller.getAllSongs();
         if (songs.isEmpty()) {
@@ -140,7 +139,6 @@ public class ConsoleUI {
         }
     }
 
-    // === UC-02 Sessions ===
     private void logSession(Controller controller) {
         var songs = controller.getAllSongs();
         if (songs.isEmpty()) {
@@ -179,7 +177,6 @@ public class ConsoleUI {
         }
     }
 
-    // === UC-04 Filter ===
     private void filterSongs(Controller controller, PlaylistService playlists) {
         System.out.println("— Filter —");
         String mood = ask("Mood-Filter " + MOOD_HINT.replace(", optional", ""), true);
@@ -200,7 +197,6 @@ public class ConsoleUI {
         }
     }
 
-    // === UC-03 Smarte Playlist ===
     private void generateSmartPlaylist(Controller controller, PlaylistService playlists) {
         var all = controller.getAllSongs();
         if (all.isEmpty()) {
@@ -241,7 +237,6 @@ public class ConsoleUI {
         }
     }
 
-    // === UC-05: Backup/Restore ===
     private void doBackup(LibraryService library) {
         String path = ask("Export-Datei (Standard: data/backup.json)", true);
         if (path.isBlank()) path = "data/backup.json";
@@ -261,7 +256,6 @@ public class ConsoleUI {
         System.out.println("Import abgeschlossen.");
     }
 
-    // === Helpers ===
     private String ask(String label, boolean optional) {
         while (true) {
             System.out.print(label + ": ");
@@ -318,4 +312,3 @@ public class ConsoleUI {
         return set;
     }
 }
-    

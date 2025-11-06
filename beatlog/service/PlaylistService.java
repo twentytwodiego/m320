@@ -6,7 +6,6 @@ import java.util.stream.Collectors;
 
 public class PlaylistService {
 
-    // --- Filter (UC-04) ---
     public List<Song> filterSongs(List<Song> allSongs, String mood, Integer minRating, String tag) {
         return allSongs.stream()
                 .filter(s -> mood == null || (s.getMood() != null && s.getMood().equalsIgnoreCase(mood)))
@@ -16,7 +15,6 @@ public class PlaylistService {
                 .collect(Collectors.toList());
     }
 
-    // --- Playlist Strategien (UC-03) ---
     public static class RandomStrategy implements SmartPlaylistStrategy {
         public List<Song> generate(List<Song> inputSongs) {
             List<Song> copy = new ArrayList<>(inputSongs);

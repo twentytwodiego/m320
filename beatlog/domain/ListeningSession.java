@@ -8,7 +8,7 @@ public class ListeningSession {
     private Instant timestamp;
     private String mood;
     private String note;
-    private Integer ratingOverride; // optional (wenn anders als Song.rating)
+    private Integer ratingOverride; 
 
     public ListeningSession() {}
 
